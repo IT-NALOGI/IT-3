@@ -43,6 +43,7 @@ public class UserResourceTest {
                         "[0].email", is("johndoe@example.com"));
     }
 
+
     @Test
     public void testGetUserById() {
         User user = User.find("email", "johndoe@example.com").firstResult();
