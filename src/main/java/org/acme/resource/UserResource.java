@@ -2,11 +2,14 @@ package org.acme.resource;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
+import io.smallrye.common.annotation.Blocking;
+import io.smallrye.common.annotation.NonBlocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.acme.model.User;
 import org.acme.rabbitmq.RabbitMQProducer;
 import org.jboss.logging.Logger;
@@ -14,8 +17,6 @@ import org.jboss.logging.Logger;
 import java.util.List;
 
 @Path("/users")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class UserResource {
 
     @Inject
@@ -44,7 +45,9 @@ public class UserResource {
     }
 
     @POST
-    @Transactional
+    @Path("/")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
     public Uni<User> addUser(User user) {
         LOGGER.infof("Adding user: %s", user);
         return Panache.withTransaction(() -> {
@@ -56,14 +59,13 @@ public class UserResource {
 
     @DELETE
     @Path("/{id}")
-    @Transactional
-    public Uni<Void> deleteUser(@PathParam("id") Long id) {
-        LOGGER.infof("Deleting user with id: %d", id);
-        return Panache.withTransaction(() -> User.findById(id))
-                .onItem().ifNotNull().transformToUni(entity -> {
-                    User.deleteById(id);
-                    return Uni.createFrom().voidItem();
-                }).onItem().invoke(() -> rabbitMQProducer.sendMessage("Deleting user with id: " + id, "logQueue"))
-                .onItem().ifNull().failWith(() -> new NotFoundException("User not found for id: " + id));
+    public Uni<Response> deleteUser(@PathParam("id") Long id) {
+        return User.findById(id)
+                .onItem().ifNotNull().transformToUni(user -> User.deleteById(id))
+                .onItem().transform(deleted -> deleted ? Response.noContent().build() : Response.status(Response.Status.NOT_FOUND).build())
+                .onFailure().recoverWithItem(th -> {
+                    LOGGER.error("Failed to delete user", th);
+                    return Response.serverError().build();
+                });
     }
 }
