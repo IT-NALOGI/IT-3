@@ -57,4 +57,4 @@ jobs:
 
     # Push the Docker image to Docker Hub
     - name: Push Docker image to DockerHub
-      run: docker blazhe/it-3:latest
+      run: docker push blazhe/it-3:latest
