@@ -7,7 +7,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "`User`")
+@Table(name = "User")
 public class User extends PanacheEntity {
 
     @Column(length = 100, nullable = false)
