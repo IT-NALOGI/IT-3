@@ -1,6 +1,5 @@
 package org.acme.resource;
 
-import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -8,7 +7,10 @@ import jakarta.ws.rs.core.Response;
 import org.acme.model.User;
 import org.acme.service.UserServiceCommand;
 import org.acme.service.UserServiceQuery;
+import org.bson.types.ObjectId;
 import org.jboss.logging.Logger;
+
+import java.util.List;
 
 @Path("/users")
 @Produces(MediaType.APPLICATION_JSON)
@@ -23,26 +25,47 @@ public class UserResource {
 
     private static final Logger LOGGER = Logger.getLogger(UserResource.class);
 
-    @GET
-    public Uni<Response.ResponseBuilder> getAllUsers() {
-        return queryService.getAllUsers()
-                .onItem().transform(Response::ok)
-                .onFailure().invoke(e -> LOGGER.error("Failed to fetch all users", e));
+    @POST
+    public Response addUser(User user) {
+        User newUser = commandService.addUser(user);
+        return Response.status(Response.Status.CREATED).entity(newUser).build();
     }
 
+    @GET
+    public List<User> getAllUsers() {
+        return queryService.getAllUsers();
+    }
 
-    @POST
-    public Uni<Response.ResponseBuilder> addUser(User user) {
-        return commandService.addUser(user)
-                .onItem().transform(newUser -> Response.status(Response.Status.CREATED).entity(newUser)) // Changed 'user' to 'newUser'
-                .onFailure().recoverWithItem(e -> Response.status(Response.Status.BAD_REQUEST));
+    @GET
+    @Path("/{id}")
+    public Response getUserById(@PathParam("id") String id) {
+        User user = queryService.getUserById(String.valueOf(new ObjectId(id)));
+        if (user != null) {
+            return Response.ok(user).build();
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+    }
+
+    @PUT
+    @Path("/{id}")
+    public Response updateUser(@PathParam("id") String id, User user) {
+        User updatedUser = commandService.updateUser(new ObjectId(id).toString(), user);
+        if (updatedUser != null) {
+            return Response.ok(updatedUser).build();
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
     }
 
     @DELETE
     @Path("/{id}")
-    public Uni<Response.ResponseBuilder> deleteUser(@PathParam("id") Long id) {
-        return commandService.deleteUser(id)
-                .onItem().transform(deleted -> deleted ? Response.noContent() : Response.status(Response.Status.NOT_FOUND))
-                .onFailure().recoverWithItem(th -> Response.serverError());
+    public Response deleteUser(@PathParam("id") String id) {
+        boolean deleted = commandService.deleteUser(new ObjectId(id).toString());
+        if (deleted) {
+            return Response.noContent().build();
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
     }
 }
